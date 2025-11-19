@@ -3,6 +3,11 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from .state import AgentState
 from .assistant import llm
 
+import os
+from tavily import TavilyClient
+
+tavily_client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
+
 INTENT_SYSTEM_PROMPT = """
 You are an intent extraction module for a research agent.
 Your goal is to convert the user's message into a focused search query.
@@ -38,4 +43,31 @@ def intent_node(state: AgentState) -> Dict:
 
     return {
         "search_query": search_query
+    }
+
+
+def search_node(state: AgentState) -> Dict:
+    """
+    Perform a web search using the extracted search_query and store the
+    raw Tavily results and list of URLs in state.
+
+    This node does not generate assistant messages; it updates structured
+    state fields for downstream fetch and answer nodes.
+    """
+    if not state.search_query:
+        raise ValueError("search_node requires state.search_query to be set.")
+
+    # Call Tavily Search with default parameters
+    response = tavily_client.search(
+        query=state.search_query,
+        include_answers=True
+    )
+
+    # Extract structured data from the response
+    results = response.get("results", [])
+    urls = [item.get("url") for item in results if item.get("url")]
+
+    return {
+        "search_results": results,
+        "urls": urls
     }
