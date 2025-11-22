@@ -6,6 +6,10 @@ from .assistant import llm
 import os
 from tavily import TavilyClient
 
+from firecrawl import Firecrawl
+firecrawl = Firecrawl(api_key=os.environ["FIRECRAWL_API_KEY"])
+
+
 tavily_client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
 
 INTENT_SYSTEM_PROMPT = """
@@ -71,3 +75,42 @@ def search_node(state: AgentState) -> Dict:
         "search_results": results,
         "urls": urls
     }
+
+
+def fetch_node(state: AgentState) -> dict:
+    documents = []
+
+    # Optional config knobs — customize anytime
+    SCRAPE_CONFIG = {
+        "formats": ["markdown"],
+        "only_main_content": True,
+        "exclude_tags": ["nav", "footer", "aside"],
+        "remove_base64_images": True,
+        "block_ads": True,
+        "mobile": False,
+        "proxy": "auto",
+    }
+
+    for url in state.urls:
+        try:
+            doc = firecrawl.scrape(
+                url=url,
+                **SCRAPE_CONFIG
+            )
+
+            markdown = getattr(doc, "markdown", "")
+            documents.append({
+                "url": url,
+                "content": markdown,
+                "error": None
+            })
+
+        except Exception as e:
+            documents.append({
+                "url": url,
+                "content": "",
+                "error": str(e)
+            })
+
+    return {"documents": documents}
+    return {"documents": documents}
